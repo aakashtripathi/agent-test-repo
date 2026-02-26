@@ -1,0 +1,12 @@
+.form-container {
+  display: flex;
+  gap: 10px;
+}
+
+.form-container input {
+  flex: 1;
+}
+
+.form-container button {
+  padding: 12px 20px;
+}
