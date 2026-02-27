@@ -144,8 +144,43 @@ jobs:
 
     - name: Scan for hardcoded secrets
       run: |
-        detect-secrets scan --all-files --baseline .secrets.baseline --update-baseline
-        detect-secrets validate --baseline .secrets.baseline
+        echo "Scanning for hardcoded secrets..."
+        
+        # Run detect-secrets scan and capture output
+        detect-secrets scan --all-files > /tmp/secrets_scan.json 2>&1
+        
+        # Check if the results array in JSON is empty
+        # If there are secrets, the file will have results with content
+        RESULT=$(python3 -c "
+import json, sys
+try:
+    with open('/tmp/secrets_scan.json') as f:
+        data = json.load(f)
+        # Count total secrets found
+        total_secrets = sum(len(v) for v in data.get('results', {}).values())
+        if total_secrets > 0:
+            print(f'Found {total_secrets} potential secret(s)')
+            sys.exit(1)
+        else:
+            print('No secrets found')
+            sys.exit(0)
+except Exception as e:
+    print(f'Error: {e}')
+    sys.exit(1)
+" 2>&1)
+        
+        if [ $? -eq 0 ]; then
+          echo "✓ Credential scan passed - $RESULT"
+        else
+          echo "⚠ ERROR: Hardcoded secrets detected!"
+          echo "$RESULT"
+          echo ""
+          echo "Remediation steps:"
+          echo "1. Identify and remove the hardcoded secret/credential"
+          echo "2. Use environment variables or GitHub Secrets instead"
+          echo "3. For legitimate data, audit: detect-secrets audit .secrets.baseline"
+          exit 1
+        fi
       continue-on-error: false
 
   test-summary:

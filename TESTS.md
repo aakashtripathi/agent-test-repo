@@ -347,10 +347,10 @@ cd frontend
 npm run test -- --run
 
 # Credential scan
-detect-secrets scan --all-files --baseline .secrets.baseline
+detect-secrets scan --all-files
 
 # All tests and security checks (from root)
-cd backend && python -m pytest tests/ -v && cd ../frontend && npm run test -- --run && cd .. && detect-secrets scan --all-files --baseline .secrets.baseline
+cd backend && python -m pytest tests/ -v && cd ../frontend && npm run test -- --run && cd .. && detect-secrets scan --all-files
 ```
 
 ---
@@ -421,12 +421,15 @@ Sample mock task:
 pip install detect-secrets
 
 # Run scan on entire repository
-detect-secrets scan --all-files --baseline .secrets.baseline
+detect-secrets scan --all-files
 
 # Run scan on specific directory
-detect-secrets scan backend/ --baseline .secrets.baseline
+detect-secrets scan backend/
 
-# Verify baseline
+# View results in JSON format
+detect-secrets scan --all-files | python3 -m json.tool
+
+# Audit baseline to whitelist non-secrets
 detect-secrets audit .secrets.baseline
 ```
 
@@ -535,9 +538,14 @@ detect-secrets audit .secrets.baseline
 pip install detect-secrets
 ```
 
-**Baseline file missing (.secrets.baseline)**: Create new baseline
+**"unrecognized arguments: --update-baseline"**: This flag doesn't exist in all versions
+- Use `detect-secrets scan --all-files` without the `--update-baseline` flag
+- Baseline is managed separately using the audit command
+
+**Baseline file missing (.secrets.baseline)**: Scan will still work, just won't compare
 ```bash
-detect-secrets scan --all-files --baseline .secrets.baseline
+detect-secrets scan --all-files
+# Results are shown in JSON format
 ```
 
 **Accidental credential pushed**: 
