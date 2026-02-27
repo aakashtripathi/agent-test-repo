@@ -323,7 +323,13 @@ Tests run automatically on every push to the `tests` branch via `.github/workflo
    - Frontend: Validate build success
    - Dependency validation
 
-4. **test-summary**
+4. **credential-scan**
+   - Scan for hardcoded secrets and credentials
+   - Check for AWS keys, private keys, API keys
+   - Scan for passwords and sensitive data
+   - Verify no credentials in code or config files
+
+5. **test-summary**
    - Display overall test results
    - Summary of all job statuses
 
@@ -340,8 +346,11 @@ python -m pytest tests/ -v
 cd frontend
 npm run test -- --run
 
-# Both (from root)
-./run-all-tests.sh  # If script exists, or run commands above separately
+# Credential scan
+detect-secrets scan --all-files --baseline .secrets.baseline
+
+# All tests and security checks (from root)
+cd backend && python -m pytest tests/ -v && cd ../frontend && npm run test -- --run && cd .. && detect-secrets scan --all-files --baseline .secrets.baseline
 ```
 
 ---
@@ -385,7 +394,74 @@ Sample mock task:
 
 ---
 
-## Common Test Patterns
+## Security Tests
+
+### Credential Scan
+
+**Purpose**: Prevent accidental commit of secrets and sensitive credentials to version control.
+
+**What It Detects:**
+- AWS access keys and secret keys
+- Private cryptographic keys (RSA, EC, OpenSSH)
+- Database connection strings with passwords
+- API keys and tokens
+- OAuth tokens and refresh tokens
+- SQL passwords and connection strings
+- PEM and PKCS8 private keys
+- GitHub personal access tokens
+- Slack/Discord tokens
+- Generic passwords and secrets
+
+**Implementation**: Uses `detect-secrets` library with entropy-based detection
+
+**Running Credential Scan Locally:**
+
+```bash
+# Install detect-secrets
+pip install detect-secrets
+
+# Run scan on entire repository
+detect-secrets scan --all-files --baseline .secrets.baseline
+
+# Run scan on specific directory
+detect-secrets scan backend/ --baseline .secrets.baseline
+
+# Verify baseline
+detect-secrets audit .secrets.baseline
+```
+
+**Configuration:**
+- Baseline file: `.secrets.baseline` (tracks known non-secrets)
+- Entropy threshold: Tuned to minimize false positives
+- Exclude patterns: `.git/`, `node_modules/`, etc.
+
+**Whitelisting Non-Secrets:**
+If a detection is a false positive (e.g., test data), audit and approve:
+```bash
+detect-secrets audit .secrets.baseline
+```
+
+**Best Practices:**
+- ✅ Use environment variables for all secrets
+- ✅ Store credentials in `.env` files (added to `.gitignore`)
+- ✅ Use `.env.example` template with placeholder values
+- ✅ Never commit passwords, API keys, or tokens
+- ✅ Use GitHub Secrets for CI/CD credentials
+- ❌ Never add credentials to code or configuration files
+
+**Example - What NOT to Do:**
+```python
+# ❌ WRONG - Hardcoded credentials
+DB_PASSWORD = "my_secret_password_123"
+AWS_KEY = "AKIA2JDLK3JLDKJ3LDJK"
+
+# ✅ RIGHT - Use environment variables
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+AWS_KEY = os.getenv("AWS_KEY")
+```
+
+---
+
 
 ### Backend (pytest)
 ```python
@@ -446,9 +522,39 @@ it('test', async () => { ... }, { timeout: 10000 })
 
 **Module not found**: Run `npm install` to ensure dependencies installed
 
+### Credential Scan Issues
+
+**"Secret detected" but it's a false positive**: Audit and approve in baseline
+```bash
+detect-secrets audit .secrets.baseline
+# Select 'y' to approve as non-secret or 'n' to flag
+```
+
+**detect-secrets not installed**: Install the package
+```bash
+pip install detect-secrets
+```
+
+**Baseline file missing (.secrets.baseline)**: Create new baseline
+```bash
+detect-secrets scan --all-files --baseline .secrets.baseline
+```
+
+**Accidental credential pushed**: 
+1. Revoke the credential immediately
+2. Remove from git history:
+```bash
+git filter-branch --tree-filter 'detect-secrets prune' -f -- --all
+```
+3. Force push (dangerous - only if not public):
+```bash
+git push origin --force-with-lease
+```
+4. Rotate the secret in the service
+5. Add to `.gitignore` or use environment variables going forward
+
 ---
 
-## Continuous Improvement
 
 ### Adding New Tests
 
@@ -476,9 +582,10 @@ When adding features, add corresponding tests:
 - [Vitest Documentation](https://vitest.dev/)
 - [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/)
 - [GitHub Actions Workflow](../.github/workflows/tests.yml)
+- [detect-secrets Documentation](https://github.com/Yelp/detect-secrets)
+- [OWASP: Forgotten Credentials](https://owasp.org/www-community/Source_Code_Disassembly/Sensitive_Data_Exposure)
 
 ---
 
 **Last Updated**: February 27, 2026  
-**Test Suite Status**: All 66 tests passing ✅  
-**Coverage Reports**: Available in GitHub Actions artifacts
+**Test Suite Status**: All 66 tests passing ✅ | Credential scanning enabled | Coverage Reports: Available in GitHub Actions artifacts
