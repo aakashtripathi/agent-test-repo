@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage"
+    "test:coverage": "vitest --coverage",
+    "lint:security": "npm audit"
   },
   "dependencies": {
     "react": "^18.2.0",
@@ -24,6 +25,7 @@
     "@vitejs/plugin-react": "^4.2.0",
     "@vitest/coverage-v8": "^1.1.0",
     "@vitest/ui": "^1.1.0",
+    "eslint-plugin-security": "^1.7.1",
     "jsdom": "^23.0.1",
     "vite": "^4.5.14",
     "vitest": "^1.1.0"
