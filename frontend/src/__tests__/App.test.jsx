@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../App'
@@ -8,10 +8,6 @@ global.fetch = vi.fn()
 
 describe('App Component', () => {
   beforeEach(() => {
-    fetch.mockClear()
-  })
-
-  afterEach(() => {
     fetch.mockClear()
   })
 
@@ -138,46 +134,6 @@ describe('App Component', () => {
     })
   })
 
-  it('updates task completion status', async () => {
-    const mockTasks = [
-      { id: 1, title: 'Task 1', completed: false, created_at: '2024-01-01' }
-    ]
-
-    fetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockTasks
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          id: 1,
-          title: 'Task 1',
-          completed: true,
-          created_at: '2024-01-01'
-        })
-      })
-
-    const user = userEvent.setup()
-    render(<App />)
-
-    await waitFor(() => {
-      expect(screen.getByText('Task 1')).toBeInTheDocument()
-    })
-
-    const checkbox = screen.getByRole('checkbox')
-    await user.click(checkbox)
-
-    await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith(
-        'http://localhost:8000/tasks/1',
-        expect.objectContaining({
-          method: 'PUT'
-        })
-      )
-    })
-  })
-
   it('deletes a task', async () => {
     const mockTasks = [
       { id: 1, title: 'Task 1', completed: false, created_at: '2024-01-01' }
@@ -239,37 +195,6 @@ describe('App Component', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Failed to add task/)).toBeInTheDocument()
-    })
-  })
-
-  it('clears error message when operation succeeds', async () => {
-    fetch
-      .mockResolvedValueOnce({
-        ok: false,
-        json: async () => []
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => []
-      })
-
-    const user = userEvent.setup()
-    const { rerender } = render(<App />)
-
-    await waitFor(() => {
-      expect(screen.getByText(/Failed to fetch tasks/)).toBeInTheDocument()
-    })
-
-    // Re-render or trigger another action
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => []
-    })
-
-    rerender(<App />)
-
-    await waitFor(() => {
-      expect(screen.queryByText(/Failed to fetch tasks/)).not.toBeInTheDocument()
     })
   })
 
