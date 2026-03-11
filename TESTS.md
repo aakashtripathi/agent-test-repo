@@ -338,7 +338,7 @@ Tests run automatically on every push to the `tests` branch via `.github/workflo
 Before pushing, run tests locally to catch issues early:
 
 ```bash
-# Backend tests
+# Backend tests steps
 cd backend
 python -m pytest tests/ -v
 
