@@ -582,6 +582,407 @@ When adding features, add corresponding tests:
 
 ---
 
+## Software Composition Analysis (SCA)
+
+### Purpose
+SCA tools scan project dependencies for known security vulnerabilities, outdated packages, and licensing issues.
+
+### Backend SCA: pip-audit
+
+**Tool**: `pip-audit` - Audits Python dependencies for known vulnerabilities
+
+**Installation:**
+```bash
+pip install pip-audit
+```
+
+**Running pip-audit Locally:**
+
+```bash
+# Scan all dependencies for vulnerabilities
+pip-audit
+
+# Generate JSON report
+pip-audit --format json > audit-report.json
+
+# Scan specific requirements file
+pip-audit -r backend/requirements.txt
+
+# Fix vulnerabilities automatically (where possible)
+pip-audit --fix
+
+# Skip specific vulnerability (if acceptable risk)
+pip-audit --skip-editable --desc CVE-XXXX-XXXXX
+```
+
+**What It Detects:**
+- Known CVEs in Python packages
+- Outdated package versions
+- Packages with unpatched vulnerabilities
+- Transitive dependency issues
+
+**Configuration:**
+- Baseline file: `.pyaudit.json` (tracks accepted risks)
+- Runs in CI/CD on every push to `tests` branch
+- Fails build if critical vulnerabilities found
+
+**Example Output:**
+```
+Found 1 vulnerability in certifi (2023.7.22)
+  Description: Certifi before 2023.07.22 does not bundle...
+  ID: PYUP-XXXXX
+  Fix: upgrade to certifi>=2023.07.22
+```
+
+### Frontend SCA: npm audit
+
+**Tool**: `npm audit` - Built-in Node.js dependency scanner
+
+**Running npm audit Locally:**
+
+```bash
+cd frontend
+
+# Scan for vulnerabilities
+npm audit
+
+# Generate audit report in JSON format
+npm audit --json > audit-report.json
+
+# Fix vulnerabilities automatically
+npm audit fix
+
+# Fix including major version changes
+npm audit fix --force
+
+# Audit specific package
+npm audit --package=package-name
+```
+
+**What It Detects:**
+- Known vulnerabilities (npm Advisory Database)
+- Outdated package versions
+- Transitive dependency issues
+- License compliance warnings
+
+**Severity Levels:**
+- `critical`: Active exploitation possible
+- `high`: Security impact likely
+- `moderate`: Some impact possible
+- `low`: Low risk, development only
+
+**Configuration:**
+- Baseline: `.npmauditrc` (skip known issues if acceptable)
+- Runs in CI/CD workflow
+- Fails build if critical vulnerabilities found
+
+**Example Output:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1 critical severity vulnerability                          │
+└─────────────────────────────────────────────────────────────┘
+
+found 1 vulnerability
+  1 critical in 1 packages
+```
+
+### Updating Vulnerable Dependencies
+
+**For Backend (Python):**
+```bash
+cd backend
+
+# Update all dependencies safely
+pip install --upgrade -r requirements.txt
+
+# Update specific package
+pip install --upgrade requests==2.31.0
+
+# Update requirements.txt
+pip freeze > requirements.txt
+
+# Commit and test
+git add requirements.txt
+pytest tests/ -v
+```
+
+**For Frontend (JavaScript):**
+```bash
+cd frontend
+
+# Update all packages to latest safe version
+npm update
+
+# Update specific package
+npm install package-name@latest
+
+# Commit and test
+git add package.json package-lock.json
+npm run test -- --run
+```
+
+### SCA in CI/CD Pipeline
+
+```yaml
+- name: Backend SCA (pip-audit)
+  run: |
+    pip install pip-audit
+    pip-audit
+    
+- name: Frontend SCA (npm audit)
+  run: |
+    cd frontend
+    npm audit
+```
+
+---
+
+## Static Application Security Testing (SAST)
+
+### Purpose
+SAST tools analyze source code for security vulnerabilities without executing it (code review automation).
+
+### Backend SAST: Bandit
+
+**Tool**: `bandit` - Security linter for Python code
+
+**Installation:**
+```bash
+pip install bandit
+```
+
+**Running Bandit Locally:**
+
+```bash
+# Scan entire backend directory
+bandit -r backend/ -v
+
+# Generate JSON report
+bandit -r backend/ -f json -o bandit-report.json
+
+# Scan specific file
+bandit backend/main.py
+
+# Exclude specific directories
+bandit -r backend/ --exclude "tests,__pycache__"
+
+# Show tests (verbose)
+bandit -r backend/ -ll  # Only show medium/high/critical
+
+# Generate HTML report
+bandit -r backend/ -f html -o bandit-report.html
+```
+
+**What It Detects:**
+- Hardcoded passwords and secrets
+- SQL injection vulnerabilities
+- Insecure use of pickle, pickle.loads
+- Hardcoded SQL queries (not parameterized)
+- Insecure randomness (random vs secrets)
+- Use of weak cryptography
+- Insecure temporary file creation
+- Command injection via shell=True
+- Assert statements in production code
+- XXE (XML External Entity) vulnerabilities
+
+**Configuration:**
+- `.bandit` configuration file (custom rules)
+- Baseline: `.bandit.baseline` (track known issues)
+- Ignores: `# nosec` comment to suppress false positives
+
+**Example Bandit Issues:**
+
+```python
+# ❌ FAILS: Hardcoded secret
+DATABASE_PASSWORD = "secret123"  # B105: hardcoded_password_string
+
+# ❌ FAILS: SQL injection risk
+query = "SELECT * FROM tasks WHERE id = " + str(user_id)  # B608: hardcoded_sql_string
+
+# ❌ FAILS: Shell injection
+os.system("rm -rf " + user_directory)  # B605: start_process_with_partial_exec
+
+# ✅ PASS: Use parameterized queries
+query = db.query(Task).filter(Task.id == user_id)
+
+# ✅ PASS: Use environment variables
+DATABASE_PASSWORD = os.getenv("DATABASE_PASSWORD")
+
+# ✅ PASS: Use subprocess with list args
+subprocess.run(["rm", "-rf", user_directory])
+```
+
+### Frontend SAST: ESLint with Security Rules
+
+**Tools**: 
+- `eslint` - JavaScript linter
+- `eslint-plugin-security` - Security-focused rules
+- `eslint-plugin-react` - React-specific security checks
+
+**Installation:**
+```bash
+cd frontend
+npm install --save-dev eslint eslint-plugin-security eslint-plugin-react
+```
+
+**Configuration (.eslintrc.json):**
+```json
+{
+  "extends": ["eslint:recommended", "plugin:react/recommended", "plugin:security/recommended"],
+  "plugins": ["react", "security"],
+  "rules": {
+    "no-eval": "error",
+    "no-implied-eval": "error",
+    "no-new-func": "error",
+    "no-script-url": "error",
+    "react/no-danger": "warn",
+    "react/no-danger-with-children": "error",
+    "security/detect-eval-with-expression": "error",
+    "security/detect-non-literal-regexp": "warn",
+    "security/detect-unsafe-regex": "error",
+    "security/detect-buffer-nopadding": "error",
+    "security/detect-child-process": "warn",
+    "security/detect-disable-mustache-escape": "error",
+    "security/detect-no-csrf-before-method-override": "error",
+    "security/detect-non-literal-fs-filename": "warn",
+    "security/detect-non-literal-regexp": "warn",
+    "security/detect-unsafe-regex": "error"
+  }
+}
+```
+
+**Running ESLint Locally:**
+
+```bash
+cd frontend
+
+# Lint all JavaScript/JSX files
+npm run lint
+
+# Lint specific file
+npx eslint src/App.jsx
+
+# Lint with detailed output
+npx eslint src/ --format json
+
+# Automatically fix issues
+npm run lint:fix
+
+# Generate HTML report
+npx eslint src/ --format html --output-file eslint-report.html
+```
+
+**What ESLint Detects:**
+- Use of `eval()` and dynamic code execution
+- Dangerous React patterns (dangerouslySetInnerHTML)
+- SQL injection risks (building queries with string concatenation)
+- XSS vulnerabilities (unsanitized user input in DOM)
+- Insecure regular expressions (ReDoS attacks)
+- XXE vulnerabilities
+- Missing input validation
+- Unsafe use of `innerHTML`
+- Unescaped user data in templates
+
+**Example ESLint Security Issues:**
+
+```jsx
+// ❌ FAILS: dangerouslySetInnerHTML with user input
+<div dangerouslySetInnerHTML={{ __html: userContent }} />  // security/react/no-danger
+
+// ❌ FAILS: eval() execution
+const result = eval(userCode)  // no-eval
+
+// ❌ FAILS: Dynamic RegExp with user input
+new RegExp(userPattern)  // security/detect-non-literal-regexp
+
+// ✓ PASS: Sanitize user content
+const sanitized = DOMPurify.sanitize(userContent);
+<div>{sanitized}</div>
+
+// ✓ PASS: Use safe methods
+import DOMPurify from 'dompurify';
+<div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(userContent) }} />
+```
+
+### SAST in CI/CD Pipeline
+
+```yaml
+- name: Backend SAST (Bandit)
+  run: |
+    pip install bandit
+    bandit -r backend/ -f json -o bandit-results.json
+    
+- name: Frontend SAST (ESLint)
+  run: |
+    cd frontend
+    npm run lint -- --format json --output-file eslint-results.json
+```
+
+---
+
+## Security Testing Summary
+
+| Test Type | Backend Tool | Frontend Tool | Purpose |
+|-----------|--------------|---------------|---------|
+| **SCA** | pip-audit | npm audit | Scan dependencies for vulnerabilities |
+| **SAST** | Bandit | ESLint + plugins | Analyze source code for security issues |
+| **Secrets** | detect-secrets | detect-secrets | Prevent hardcoded credentials |
+| **Unit/Integration** | pytest | Vitest | Test functionality and edge cases |
+
+### Running All Security Tests Locally
+
+```bash
+# From root directory
+
+# Backend security tests
+cd backend
+pip install pip-audit bandit
+pip-audit
+bandit -r . --exclude tests,__pycache__
+
+# Frontend security tests
+cd ../frontend
+npm audit
+npm run lint
+
+# Credential scan (root)
+cd ..
+pip install detect-secrets
+detect-secrets scan --all-files
+
+# All tests (functional + security)
+cd backend && pytest tests/ -v && cd ../frontend && npm run test -- --run
+```
+
+### Security Testing Best Practices
+
+1. **Run Locally Before Pushing**
+   - `pip-audit` and `bandit` for Python
+   - `npm audit` and `npm run lint` for JavaScript
+   - `detect-secrets scan` at root
+
+2. **Review Security Reports**
+   - Check CI/CD logs for security failures
+   - Fix vulnerabilities or document acceptances
+   - Update baselines when appropriate
+
+3. **Keep Dependencies Updated**
+   - Run SCA tools weekly
+   - Apply patches promptly
+   - Test thoroughly after updates
+
+4. **Fix SAST Issues**
+   - Address all critical findings
+   - Use `# nosec` comments sparingly
+   - Document exceptions with rationale
+
+5. **Credential Management**
+   - Rotate secrets exposed in git history
+   - Use environment variables
+   - Add to `.gitignore`
+
+---
+
 ## References
 
 - [Backend Testing Guide](./backend/tests/README.md)
